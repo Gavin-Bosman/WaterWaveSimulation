@@ -18,11 +18,17 @@ space = pm.Space()
 # Draw The Simulation
 
 
-def draw(space, window, draw_options, objects):
+def draw(space, window, draw_options, wave):
     window.fill("black")
 
-    # for object in objects:
-    # object.draw(window)
+    for object in range(len(wave)-1):
+        # Draw Lines Connecting Adjacent Points
+        # if object != 0 and object != len(wave)-1:
+        pg.draw.line(window, (255, 255, 255, 100),
+                     (wave[object].body.position), (wave[object + 1].body.position), 3)
+
+    # pg.draw.line(window, (255, 255, 255, 100),
+        #  (100, 100), (np.random.randint(0, HEIGHT), np.random.randint(0, HEIGHT)), 1)
 
     space.debug_draw(draw_options)
 
@@ -85,7 +91,8 @@ class SpringPoints:
 
         body = pm.Body(body_type=pm.Body.DYNAMIC)
         body.position = (self.x, self.y)
-        shape = pm.Circle(body, 3)
+        # shape = pm.Circle(body, 4.5)
+        shape = pm.Circle(body, 0.01)
         shape.mass = 1
         shape.elasticity = 0.5
         shape.friction = 0.2
@@ -127,6 +134,11 @@ class SpringPoints:
 
 def main(window, width, height):
     # Main Loop Vars
+
+    # Drawing Options
+    draw_options = pmg.DrawOptions(window)
+    draw_options.flags = pm.SpaceDebugDrawOptions.DRAW_SHAPES
+
     run = True
     paused = False
     clock = pg.time.Clock()
@@ -150,10 +162,11 @@ def main(window, width, height):
 
     # Create Wave
     # wave = [SpringPoints(loc, height/2) for loc in range(width//5)]
-    intervals = np.linspace(20, WIDTH-20, 150)
+    intervals = np.linspace(20, WIDTH-20, 80)
     # intervals = np.linspace(20, WIDTH-20, 5)
     print(intervals)
     wave = [SpringPoints(loc, height/2) for loc in intervals]
+    wavePointsPos = [(point.x, point.y) for point in wave]
     # wave = [SpringPoints(width/2, height/2)]
 
     # Current Wave Height (change if want to account for displacement)
@@ -161,9 +174,10 @@ def main(window, width, height):
     stiffness = 60
     damping = 5
     # Rest Length Scale
+    SCALE = 1/4
     SCALE = 1/3
-    # SCALE = 1/2
-    # SCALE = 1/1
+    SCALE = 1/2
+    # SCALE = 1
 
     # Link Adjacent Wave Points
     for ind in range(len(wave)):
@@ -202,9 +216,6 @@ def main(window, width, height):
             )
             space.add(joint)
 
-    # Drawing Options
-    draw_options = pmg.DrawOptions(window)
-    draw_options.flags = pm.SpaceDebugDrawOptions.DRAW_SHAPES
     decreasingS = False
     increasingS = False
     decreasingD = False
@@ -300,11 +311,9 @@ def main(window, width, height):
                         # springPoint.body.velocity = (0, 0)
                         # springPoint.joint.b.position = pg.mouse.get_pos()
 
-            objects.append(springPoint)
-
         # Check for Pause/Play State
         if not paused:
-            draw(space, window, draw_options, objects)
+            draw(space, window, draw_options, wave)
             space.step(dt)
             clock.tick(fps)
 
