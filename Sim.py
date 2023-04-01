@@ -85,7 +85,7 @@ class SpringPoints:
 
         body = pm.Body(body_type=pm.Body.DYNAMIC)
         body.position = (self.x, self.y)
-        shape = pm.Circle(body, 1)
+        shape = pm.Circle(body, 3)
         shape.mass = 1
         shape.elasticity = 0.5
         shape.friction = 0.2
@@ -97,17 +97,24 @@ class SpringPoints:
         p0 = self.x, HEIGHT
         joint = pm.constraints.DampedSpring(
             # b0, body, (self.x, HEIGHT), (self.x, HEIGHT/2), HEIGHT, 50, 5)
-            b0, body, (0, 0), (0, 0), (HEIGHT/3), 50, 5)
+            # b0, body, (0, 0), (0, 0), (HEIGHT/3), 10, 30)
+            b0, body, (0, 0), (0, 0), (HEIGHT/3), 0.5, 0.8)
         space.add(b0, body, shape, joint)
         # space.add(body, shape)
 
         # joint.b.gravity_scale = (0, 0)
         # joint.a.gravity_scale = (0, 0)
 
+        # Slide joint constraint to constrain the motion of the spring along the x-axis
+        # slide_joint = pm.constraints.SlideJoint(
+        # body, b0, (0, 0), (0, 0), -5, 5)
+        # space.add(slide_joint)
+
         self.body = body
         self.shape = shape
         self.joint = joint
         self.anchor = b0
+        # self.slide_joint = slide_joint
 
     # def draw(self, surface):
         # pg.draw.circle(surface, "white", (self.x, self.y), 25)
@@ -143,14 +150,65 @@ def main(window, width, height):
 
     # Create Wave
     # wave = [SpringPoints(loc, height/2) for loc in range(width//5)]
-    intervals = np.linspace(10, WIDTH-10, 500)
+    intervals = np.linspace(20, WIDTH-20, 150)
+    # intervals = np.linspace(20, WIDTH-20, 5)
     print(intervals)
     wave = [SpringPoints(loc, height/2) for loc in intervals]
-    # wave = [SpringPoints(WIDTH/2, height/2)]
+    # wave = [SpringPoints(width/2, height/2)]
+
+    # Current Wave Height (change if want to account for displacement)
+    WAVEHEIGHT = 480
+    stiffness = 60
+    damping = 5
+    # Rest Length Scale
+    SCALE = 1/3
+    # SCALE = 1/2
+    # SCALE = 1/1
+
+    # Link Adjacent Wave Points
+    for ind in range(len(wave)):
+        # Join Farmost Left Point to Left Boundary
+        if ind == 0:
+            print(f'{wave[ind].body.position=}')
+            leftBoundary = pm.Body(body_type=pm.Body.KINEMATIC)
+            leftBoundary.position = (20, WAVEHEIGHT)
+            print(f'{leftBoundary.position=}')
+            joint = pm.constraints.DampedSpring(
+                leftBoundary, wave[ind].body, (0, 0), (0, 0),
+                wave[ind].x, 10, 10
+            )
+            joint2 = pm.constraints.DampedSpring(
+                wave[ind].body, wave[ind + 1].body, (0, 0), (0, 0), distance(
+                    wave[ind].body.position, wave[ind + 1].body.position)*SCALE, stiffness, damping
+            )
+            space.add(joint2)
+
+            space.add(joint)
+
+        # Join Farmost Right Point to Right Boundary
+        elif ind == len(wave)-1:
+            rightBoundary = pm.Body(body_type=pm.Body.KINEMATIC)
+            rightBoundary.position = (WIDTH-20, WAVEHEIGHT)
+            joint = pm.constraints.DampedSpring(
+                wave[ind].body, rightBoundary, (0, 0), (0, 0), distance(
+                    wave[ind].body.position, rightBoundary.position)*SCALE, 10, 10
+            )
+
+        # Join To Adjacent Points
+        else:
+            joint = pm.constraints.DampedSpring(
+                wave[ind].body, wave[ind + 1].body, (0, 0), (0, 0), distance(
+                    wave[ind].body.position, wave[ind + 1].body.position)*SCALE, stiffness, damping
+            )
+            space.add(joint)
 
     # Drawing Options
     draw_options = pmg.DrawOptions(window)
     draw_options.flags = pm.SpaceDebugDrawOptions.DRAW_SHAPES
+    decreasingS = False
+    increasingS = False
+    decreasingD = False
+    increasingD = False
 
     # Main Simulation Loop
     while run:
@@ -158,11 +216,13 @@ def main(window, width, height):
 
         # For each point
         for springPoint in wave:
+            # print(f'{springPoint.body.position=}')
 
             if springPoint.dragging:
                 # Stop that point from moving if dragging
                 springPoint.body.velocity = (0, 0)
-                springPoint.joint.b.position = pg.mouse.get_pos()
+                springPoint.joint.b.position = (
+                    springPoint.joint.b.position[0], pg.mouse.get_pos()[1])
 
             for event in pg.event.get():
                 # Handle Quite Event
@@ -176,6 +236,39 @@ def main(window, width, height):
                         paused = False
                     else:
                         paused = True
+
+                # Adjust stiffness and damping
+                if event.type == pg.KEYDOWN and event.key == pg.K_p or increasingS:
+                    springPoint.joint.stiffness += 1
+                    increasingS = True
+                    print(f'{springPoint.joint.stiffness=}')
+
+                if event.type == pg.KEYUP and event.key == pg.K_p:
+                    increasingS = False
+
+                if event.type == pg.KEYDOWN and event.key == pg.K_o or decreasingS:
+                    springPoint.joint.stiffness -= 1
+                    decreasingS = True
+                    print(f'{springPoint.joint.stiffness=}')
+
+                if event.type == pg.KEYUP and event.key == pg.K_o:
+                    decreasingS = False
+
+                if event.type == pg.KEYDOWN and event.key == pg.K_SEMICOLON or increasingD:
+                    springPoint.joint.damping += 1
+                    increasingD = True
+                    print(f'{springPoint.joint.damping=}')
+
+                if event.type == pg.KEYUP and event.key == pg.K_SEMICOLON:
+                    increasingD = False
+
+                if event.type == pg.KEYDOWN and event.key == pg.K_l or decreasingD:
+                    springPoint.joint.springPoint.joint.damping -= 1
+                    decreasingD = True
+                    print(f'{springPoint.joint.damping=}')
+
+                if event.type == pg.KEYUP and event.key == pg.K_l:
+                    decreasingD = False
 
                 # Moving Ball On Mouseclick
 
@@ -196,14 +289,16 @@ def main(window, width, height):
 
                         if closest_spring is not None:
                             closest_spring.dragging = True
+                    print(f'{pg.mouse.get_pos()=}')
 
                 if event.type == pg.MOUSEBUTTONUP:
                     for springPoint in wave:
                         springPoint.dragging = False
 
-                if dragging:
-                    springPoint.body.velocity = (0, 0)
-                    springPoint.joint.b.position = pg.mouse.get_pos()
+                # for springPoint in wave:
+                    # if springPoint.dragging:
+                        # springPoint.body.velocity = (0, 0)
+                        # springPoint.joint.b.position = pg.mouse.get_pos()
 
             objects.append(springPoint)
 
