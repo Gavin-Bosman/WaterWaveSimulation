@@ -16,11 +16,18 @@ window = pg.display.set_mode((WIDTH, HEIGHT))
 # Create pymunk space
 space = pm.Space()
 
+# Background Image
+background_image = pg.image.load('background.png')
+background_image = pg.transform.scale(background_image, (WIDTH, HEIGHT))
+
 # Draw The Simulation
 
 
 def draw(space, window, draw_options, wave):
     window.fill("black")
+    window.fill((240, 248, 255))
+
+    window.blit(background_image, (0, 0))
 
     # ====================================
     # Create Smooth Curve
@@ -44,13 +51,37 @@ def draw(space, window, draw_options, wave):
     y_filtered = np.fft.ifft(y_fft)
 
     # Draw lines between the filtered points
-    for i in range(len(x_coords) - 1):
-        pg.draw.line(window, (255, 255, 255, 100),
-                     (x_coords[i], y_filtered[i].real), (x_coords[i + 1], y_filtered[i + 1].real), 3)
+    # for i in range(len(x_coords) - 1):
+    # line = pg.Surface()
+    # pg.draw.line(window, (28, 28, 28, 0),
+    #  (x_coords[i], y_filtered[i].real), (x_coords[i + 1], y_filtered[i + 1].real), 3)
 
     # ====================================
     # FFT
     # ====================================
+
+    # Draw Water Underneath Curve
+    # Create a list of vertices for the polygon representing the area under the curve
+    vertices = [(x_coords[i], y_filtered[i].real)
+                for i in range(len(x_coords))]
+    vertices += [(x_coords[-1], HEIGHT), (x_coords[0], HEIGHT)]
+
+    pg.draw.polygon(window, (64, 80, 92, 50), vertices)
+
+    # start_color = np.array([14, 49, 81])
+    # end_color = np.array([138, 181, 218])
+
+    # # Draw lines between the filtered points
+    # for i in range(len(x_coords) - 1):
+    #     # Calculate the position ratio (between 0 and 1) along the curve
+    #     position_ratio = i / (len(x_coords) - 1)
+
+    #     # Interpolate the color using the position ratio
+    #     interpolated_color = (1 - position_ratio) * \
+    #         start_color + position_ratio * end_color
+
+    #     pg.draw.line(window, tuple(interpolated_color.astype(int)),
+    #                  (x_coords[i], y_filtered[i].real), (x_coords[i + 1], y_filtered[i + 1].real), 3)
 
     # ====================================
     # SPLINE (Slower than FFT? + Freaking out at certain points)
@@ -86,7 +117,7 @@ def draw(space, window, draw_options, wave):
     # Create Smooth Curve
     # ====================================
 
-    space.debug_draw(draw_options)
+    # space.debug_draw(draw_options)
 
     pg.display.update()
 
@@ -104,7 +135,7 @@ def distance(p1, p2):
 
 def create_boundaries(space, width, height):
     rectRadius = 3
-    borderColor = (0, 0, 0, 100)
+    borderColor = (255, 255, 255, 20)
     rects = [
         # Ground
         [(width/2, height-rectRadius), (width, rectRadius)],
@@ -122,6 +153,7 @@ def create_boundaries(space, width, height):
         shape.elasticity = 0.4
         shape.friction = 0.5
         shape.color = borderColor
+        shape.filled = False
         space.add(body, shape)
 
 
@@ -218,7 +250,7 @@ def main(window, width, height):
 
     # Create Wave
     # wave = [SpringPoints(loc, height/2) for loc in range(width//5)]
-    intervals = np.linspace(20, WIDTH-20, 100)
+    intervals = np.linspace(0, WIDTH, 100)
     # intervals = np.linspace(20, WIDTH-20, 5)
     print(intervals)
     wave = [SpringPoints(loc, height/2) for loc in intervals]
@@ -241,7 +273,7 @@ def main(window, width, height):
         if ind == 0:
             print(f'{wave[ind].body.position=}')
             leftBoundary = pm.Body(body_type=pm.Body.KINEMATIC)
-            leftBoundary.position = (20, WAVEHEIGHT)
+            leftBoundary.position = (0, WAVEHEIGHT)
             print(f'{leftBoundary.position=}')
             joint = pm.constraints.DampedSpring(
                 leftBoundary, wave[ind].body, (0, 0), (0, 0),
@@ -258,7 +290,7 @@ def main(window, width, height):
         # Join Farmost Right Point to Right Boundary
         elif ind == len(wave)-1:
             rightBoundary = pm.Body(body_type=pm.Body.KINEMATIC)
-            rightBoundary.position = (WIDTH-20, WAVEHEIGHT)
+            rightBoundary.position = (WIDTH-0, WAVEHEIGHT)
             joint = pm.constraints.DampedSpring(
                 wave[ind].body, rightBoundary, (0, 0), (0, 0), distance(
                     wave[ind].body.position, rightBoundary.position)*SCALE, 10, 10
