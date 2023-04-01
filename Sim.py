@@ -4,6 +4,7 @@ import pymunk as pm
 import pymunk.pygame_util as pmg
 import math
 import numpy as np
+from scipy.interpolate import interp1d
 
 # Initialize PyGame
 pg.init()
@@ -21,14 +22,69 @@ space = pm.Space()
 def draw(space, window, draw_options, wave):
     window.fill("black")
 
-    for object in range(len(wave)-1):
-        # Draw Lines Connecting Adjacent Points
-        # if object != 0 and object != len(wave)-1:
-        pg.draw.line(window, (255, 255, 255, 100),
-                     (wave[object].body.position), (wave[object + 1].body.position), 3)
+    # ====================================
+    # Create Smooth Curve
+    # ====================================
 
-    # pg.draw.line(window, (255, 255, 255, 100),
-        #  (100, 100), (np.random.randint(0, HEIGHT), np.random.randint(0, HEIGHT)), 1)
+    # ====================================
+    # FFT
+    # ====================================
+    # Extract x and y coordinates from the points
+    x_coords = [point.body.position[0] for point in wave]
+    y_coords = [point.body.position[1] for point in wave]
+
+    # Compute the FFT of the y-coordinates
+    y_fft = np.fft.fft(y_coords)
+
+    # Apply a low-pass filter by zeroing out higher frequency components
+    cutoff = 6  # Modify this value to adjust the smoothness of the filtered line
+    y_fft[cutoff:-cutoff] = 0
+
+    # Compute the inverse FFT to obtain the filtered y-coordinates
+    y_filtered = np.fft.ifft(y_fft)
+
+    # Draw lines between the filtered points
+    for i in range(len(x_coords) - 1):
+        pg.draw.line(window, (255, 255, 255, 100),
+                     (x_coords[i], y_filtered[i].real), (x_coords[i + 1], y_filtered[i + 1].real), 3)
+
+    # ====================================
+    # FFT
+    # ====================================
+
+    # ====================================
+    # SPLINE (Slower than FFT? + Freaking out at certain points)
+    # ====================================
+
+    # Extract x and y coordinates from the points
+    # xCoords = [point.body.position[0] for point in wave]
+    # yCoords = [point.body.position[1] for point in wave]
+
+    # # Interpolation function
+    # interp = interp1d(xCoords, yCoords, kind='cubic', fill_value="extrapolate")
+
+    # # Generate new interpolated points
+    # xInterp = np.linspace(xCoords[0], yCoords[-1], num=len(wave))
+    # yInterp = interp(xInterp)
+
+    # # Draw lines between the interpolated points
+    # for i in range(len(xInterp) - 1):
+    #     pg.draw.line(window, (255, 255, 255, 100),
+    #                  (xInterp[i], yInterp[i]), (xInterp[i + 1], yInterp[i + 1]), 3)
+
+    # for object in range(len(wave)-1):
+    #     # Draw Lines Connecting Adjacent Points
+    #     # if object != 0 and object != len(wave)-1:
+    #     pg.draw.line(window, (255, 255, 255, 100),
+    #                  (wave[object].body.position), (wave[object + 1].body.position), 3)
+
+    # ====================================
+    # SPLINE
+    # ====================================
+
+    # ====================================
+    # Create Smooth Curve
+    # ====================================
 
     space.debug_draw(draw_options)
 
@@ -162,7 +218,7 @@ def main(window, width, height):
 
     # Create Wave
     # wave = [SpringPoints(loc, height/2) for loc in range(width//5)]
-    intervals = np.linspace(20, WIDTH-20, 80)
+    intervals = np.linspace(20, WIDTH-20, 100)
     # intervals = np.linspace(20, WIDTH-20, 5)
     print(intervals)
     wave = [SpringPoints(loc, height/2) for loc in intervals]
