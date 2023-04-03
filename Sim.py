@@ -1,17 +1,20 @@
 # Import Required Libraries
 import pygame as pg
+import pygame.gfxdraw as gfx
 import pymunk as pm
 import pymunk.pygame_util as pmg
 import math
 import numpy as np
 from scipy.interpolate import interp1d
+import pygame.mask
+
 
 # Initialize PyGame
 pg.init()
 
 # Set Up Window
 WIDTH, HEIGHT = 1280, 720
-window = pg.display.set_mode((WIDTH, HEIGHT))
+window = pg.display.set_mode((WIDTH, HEIGHT), pg.HWSURFACE  | pg.DOUBLEBUF | pg.HWACCEL)
 
 # Create pymunk space
 space = pm.Space()
@@ -19,6 +22,10 @@ space = pm.Space()
 # Background Image
 background_image = pg.image.load('background.png')
 background_image = pg.transform.scale(background_image, (WIDTH, HEIGHT))
+
+
+# Texture
+image = pg.image.load("texture.png")
 
 # Draw The Simulation
 
@@ -33,12 +40,16 @@ def draw(space, window, draw_options, wave):
     # Create Smooth Curve
     # ====================================
 
-    # ====================================
     # FFT
-    # ====================================
+
     # Extract x and y coordinates from the points
-    x_coords = [point.body.position[0] for point in wave]
-    y_coords = [point.body.position[1] for point in wave]
+    # x_coords = [point.body.position[0] for point in wave]
+    # y_coords = [point.body.position[1] for point in wave]
+
+    # Numpy for speed 
+    x_coords = np.array([point.body.position[0] for point in wave])
+    y_coords = np.array([point.body.position[1] for point in wave])
+    # Numpy for speed 
 
     # Compute the FFT of the y-coordinates
     y_fft = np.fft.fft(y_coords)
@@ -50,74 +61,50 @@ def draw(space, window, draw_options, wave):
     # Compute the inverse FFT to obtain the filtered y-coordinates
     y_filtered = np.fft.ifft(y_fft)
 
-    # Draw lines between the filtered points
-    # for i in range(len(x_coords) - 1):
-    # line = pg.Surface()
-    # pg.draw.line(window, (28, 28, 28, 0),
-    #  (x_coords[i], y_filtered[i].real), (x_coords[i + 1], y_filtered[i + 1].real), 3)
-
-    # ====================================
-    # FFT
-    # ====================================
 
     # Draw Water Underneath Curve
     # Create a list of vertices for the polygon representing the area under the curve
-    vertices = [(x_coords[i], y_filtered[i].real)
-                for i in range(len(x_coords))]
-    vertices += [(x_coords[-1], HEIGHT), (x_coords[0], HEIGHT)]
+    # vertices = [(x_coords[i], y_filtered[i].real)
+                # for i in range(len(x_coords))]
+    # vertices += [(x_coords[-1], HEIGHT), (x_coords[0], HEIGHT)]
 
-    pg.draw.polygon(window, (64, 80, 92, 50), vertices)
+    # Numpy for speed
+    vertices = np.array([(x_coords[i], y_filtered[i].real) for i in range(len(x_coords))])
+    vertices = np.append(vertices, [(x_coords[-1], HEIGHT), (x_coords[0], HEIGHT)], axis=0)
 
-    # start_color = np.array([14, 49, 81])
-    # end_color = np.array([138, 181, 218])
+    # pg.draw.polygon(window, (64, 80, 92, 50), vertices)
+    
+    # METHOD 1 - Fastest
+    # pg.gfxdraw.filled_polygon(window, vertices,(14,49,81, 200))
+    # pg.gfxdraw.aapolygon(window, vertices, (14,49,81, 255))
 
-    # # Draw lines between the filtered points
-    # for i in range(len(x_coords) - 1):
-    #     # Calculate the position ratio (between 0 and 1) along the curve
-    #     position_ratio = i / (len(x_coords) - 1)
+    # METHOD 2 - Realistic, slower but not blizting the AA edge looks and performs pretty good 
+    # Create a new surface with alpha channel
+    image_surface = pg.Surface((image.get_width(), image.get_height()), pg.SRCALPHA)
 
-    #     # Interpolate the color using the position ratio
-    #     interpolated_color = (1 - position_ratio) * \
-    #         start_color + position_ratio * end_color
+    # Blit the image onto the surface
+    image_surface.blit(image, (0, 0))
 
-    #     pg.draw.line(window, tuple(interpolated_color.astype(int)),
-    #                  (x_coords[i], y_filtered[i].real), (x_coords[i + 1], y_filtered[i + 1].real), 3)
+    # Create a new surface for the polygon
+    polygon_surface = pg.Surface((WIDTH,HEIGHT), pg.SRCALPHA)
 
-    # ====================================
-    # SPLINE (Slower than FFT? + Freaking out at certain points)
-    # ====================================
+    # Draw the polygon onto the surface
+    pg.gfxdraw.filled_polygon(polygon_surface, vertices, (255, 255, 255, 255))
+    # pg.gfxdraw.aapolygon(polygon_surface, vertices, (14,49,81, 255))
 
-    # Extract x and y coordinates from the points
-    # xCoords = [point.body.position[0] for point in wave]
-    # yCoords = [point.body.position[1] for point in wave]
+    # Blit the image surface onto the polygon surface
+    polygon_surface.blit(image_surface, (0, 0), special_flags=pg.BLEND_RGBA_MULT)
 
-    # # Interpolation function
-    # interp = interp1d(xCoords, yCoords, kind='cubic', fill_value="extrapolate")
+    # Blit the polygon surface onto the main surface
+    window.blit(polygon_surface, (0, 0))
 
-    # # Generate new interpolated points
-    # xInterp = np.linspace(xCoords[0], yCoords[-1], num=len(wave))
-    # yInterp = interp(xInterp)
+    
+    pg.gfxdraw.aapolygon(window, vertices, (124,166,203, 255))
 
-    # # Draw lines between the interpolated points
-    # for i in range(len(xInterp) - 1):
-    #     pg.draw.line(window, (255, 255, 255, 100),
-    #                  (xInterp[i], yInterp[i]), (xInterp[i + 1], yInterp[i + 1]), 3)
-
-    # for object in range(len(wave)-1):
-    #     # Draw Lines Connecting Adjacent Points
-    #     # if object != 0 and object != len(wave)-1:
-    #     pg.draw.line(window, (255, 255, 255, 100),
-    #                  (wave[object].body.position), (wave[object + 1].body.position), 3)
-
-    # ====================================
-    # SPLINE
-    # ====================================
 
     # ====================================
     # Create Smooth Curve
     # ====================================
-
-    # space.debug_draw(draw_options)
 
     pg.display.update()
 
@@ -167,7 +154,7 @@ def create_boundaries(space, width, height):
 
 # Create Spring Points Class
 class SpringPoints:
-    def __init__(self, x=0, y=0, height=None):
+    def __init__(self, x=0, y=0, height=HEIGHT/3):
         self.dampening = 0.1
         self.tension = 0.1
         self.height = height
@@ -193,27 +180,13 @@ class SpringPoints:
         joint = pm.constraints.DampedSpring(
             # b0, body, (self.x, HEIGHT), (self.x, HEIGHT/2), HEIGHT, 50, 5)
             # b0, body, (0, 0), (0, 0), (HEIGHT/3), 10, 30)
-            b0, body, (0, 0), (0, 0), (HEIGHT/3), 0.5, 0.8)
+            b0, body, (0, 0), (0, 0), (height), 0.5, 0.8)
         space.add(b0, body, shape, joint)
-        # space.add(body, shape)
-
-        # joint.b.gravity_scale = (0, 0)
-        # joint.a.gravity_scale = (0, 0)
-
-        # Slide joint constraint to constrain the motion of the spring along the x-axis
-        # slide_joint = pm.constraints.SlideJoint(
-        # body, b0, (0, 0), (0, 0), -5, 5)
-        # space.add(slide_joint)
 
         self.body = body
         self.shape = shape
         self.joint = joint
         self.anchor = b0
-        # self.slide_joint = slide_joint
-
-    # def draw(self, surface):
-        # pg.draw.circle(surface, "white", (self.x, self.y), 25)
-        # pg.draw.circle(surface, "white", (self.x, self.height), 25)
 
     # ====================================
     # END Object Classes
@@ -246,6 +219,7 @@ def main(window, width, height):
     # Call Creation Functions
     create_boundaries(space, width, height)
 
+    # For One Point only
     # springPoint = SpringPoints(width/2, height/2)
 
     # Create Wave
@@ -253,13 +227,14 @@ def main(window, width, height):
     intervals = np.linspace(0, WIDTH, 100)
     # intervals = np.linspace(20, WIDTH-20, 5)
     print(intervals)
-    wave = [SpringPoints(loc, height/2) for loc in intervals]
-    wavePointsPos = [(point.x, point.y) for point in wave]
+    wave = [SpringPoints(loc, height/2, HEIGHT//2.4) for loc in intervals]
     # wave = [SpringPoints(width/2, height/2)]
 
     # Current Wave Height (change if want to account for displacement)
-    WAVEHEIGHT = 480
-    stiffness = 60
+    # WAVEHEIGHT = 480
+    # WAVEHEIGHT = 30
+    WAVEHEIGHT = HEIGHT - HEIGHT *0.6667
+    stiffness = 144
     damping = 5
     # Rest Length Scale
     SCALE = 1/4
