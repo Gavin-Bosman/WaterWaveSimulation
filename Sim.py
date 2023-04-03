@@ -24,27 +24,61 @@ pygame.display.set_caption('Ocean Wave Simulation')
 # Set the window icon
 pygame.display.set_icon(icon)
 
+# Background Image
+background_image = pg.image.load('background.png')
+background_image = pg.transform.scale(background_image, (WIDTH, HEIGHT))
 
+# Surface for Background
+background_surface = pygame.Surface((WIDTH, HEIGHT))
+background_surface.blit(background_image, (0, 0))
+
+# Surface for Wave and Objects
+wave_surface = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
+rock_surface = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
+rock_surface.blit(pg.image.load('rock.png'), (0, 0))
+
+
+# window.fill("black")
+# window.fill((240, 248, 255))
+
+# Text 
+HELP = False
+pygame.font.init()
+font = pygame.font.Font('Avenir LT Std 65 Medium.otf', 15)
+textLine1 = font.render("Toggle Help: Press H", True, (37,37,37))
+textLine2 = font.render("Toggle Mode (Object/Wave): Press W", True, (37,37,37))
+textLine3 = font.render("Adjust Wind (Wave Mode): (Ctrl + Scroll)", True, (37,37,37))
+textLine4 = font.render("Adjust Object Size (Object Mode): (Ctrl + Scroll)", True, (37,37,37))
+
+# ====================================
+# SPACES
+# ====================================
 # Create pymunk space
 # Wave Space
 space = pm.Space()
 # Object Space
 spaceObj = pm.Space()
 
-# Background Image
-background_image = pg.image.load('background.png')
-background_image = pg.transform.scale(background_image, (WIDTH, HEIGHT))
+handler = space.add_collision_handler(1, 2)
 
+def begin(space1, arbiter, space2):
+    for c in arbiter.contact_point_set:
+        handler.pre_solve(arbiter, space1)
+        c.normal_impulse, c.tangent_impulse = arbiter.total_impulses
+        handler.post_solve(arbiter, space1)
+    return True
 
 # Texture
 image = pg.image.load("texture.png")
 
 # Draw The Simulation
-def draw(space, window, draw_options, wave):
-    window.fill("black")
-    window.fill((240, 248, 255))
+def draw(space,spaceObj, window, draw_options, wave,objects):
+    # window.fill("black")
+    # window.fill((0,0,0))
 
-    window.blit(background_image, (0, 0))
+    wave_surface.fill((0,0,0,0))
+    
+    # window.blit(background_image, (0, 0))
 
     # ====================================
     # Create Smooth Curve
@@ -106,17 +140,41 @@ def draw(space, window, draw_options, wave):
     polygon_surface.blit(image_surface, (0, 0), special_flags=pg.BLEND_RGBA_MULT)
 
     # Blit the polygon surface onto the main surface
-    window.blit(polygon_surface, (0, 0))
-
+    pg.gfxdraw.aapolygon(wave_surface, vertices, (124,166,203, 255))
+    wave_surface.blit(polygon_surface, (0, 0))
     
-    pg.gfxdraw.aapolygon(window, vertices, (124,166,203, 255))
 
+    # Blit Renders
+    window.blit(background_surface, (0, 0))
+    window.blit(wave_surface, (0, 0))
+    # Blit Text
+    window.blit(textLine1, (10, 10))
+    if HELP:
+        window.blit(textLine2, (10, 35))
+        window.blit(textLine3, (10, 60))
+        window.blit(textLine4, (10, 85))
+    
 
     # ====================================
     # Create Smooth Curve
     # ====================================
+    
+    # space.debug_draw(draw_options)
 
-    pg.display.update()
+    for object in objects:
+        imageRock = pg.image.load("Rock.png")
+        imageRock = pygame.transform.scale(imageRock, (object.radius*2, object.radius*2))
+
+        rockSurface = pg.Surface((object.radius*2, object.radius*2),pg.SRCALPHA)
+        pg.draw.circle(rockSurface, (255,255,255), (object.radius,object.radius), 15)
+        image_rect = imageRock.get_rect(center=(object.radius, object.radius))
+        rockSurface.blit(imageRock, image_rect)
+        window.blit(rockSurface, (object.body.position[0]-object.radius, object.body.position[1] - object.radius ))
+
+
+    # spaceObj.debug_draw(draw_options)
+    pygame.display.flip()
+    # pg.display.update()
 
 
 # Get Distance Between Two Points
@@ -154,14 +212,16 @@ def create_boundaries(space, width, height):
         space.add(body, shape)
 
 
-def createObject(space, pos, radius, mass, elasticity, friction):
+def createObject(space, pos, radius=20, mass=100000, elasticity=0.2, friction=100):
     body = pm.Body(body_type=pm.Body.DYNAMIC)
     body.position = pos
+    body.velocity = (0, 981/2)
     shape = pm.Circle(body, radius)
     shape.mass = mass
     shape.elasticity = elasticity
     shape.friction = friction
     shape.color = (255, 255, 255, 100)
+
     space.add(body, shape)
     return shape
 
@@ -175,7 +235,7 @@ def createObject(space, pos, radius, mass, elasticity, friction):
 
 # Create Spring Points Class
 class SpringPoints:
-    def __init__(self, x=0, y=0, height=HEIGHT/3):
+    def __init__(self, space, x=0, y=0, height=HEIGHT/3):
         self.dampening = 0.1
         self.tension = 0.1
         self.height = height
@@ -208,6 +268,7 @@ class SpringPoints:
         self.shape = shape
         self.joint = joint
         self.anchor = b0
+        # space.gravity = (0,0)
 
     # ====================================
     # END Object Classes
@@ -220,6 +281,11 @@ def main(window, width, height):
     # Drawing Options
     draw_options = pmg.DrawOptions(window)
     draw_options.flags = pm.SpaceDebugDrawOptions.DRAW_SHAPES
+
+    global HELP
+
+    # If WaveMode False, Object Mode is on
+    WaveMode = True
 
     run = True
     paused = False
@@ -236,6 +302,8 @@ def main(window, width, height):
     # Setup Gravity for the Space
     # space.gravity = (0, 9.81 * 100)
     space.gravity = (0, 9.81 * 100 * 0)
+    spaceObj.gravity = (0, 9.81 * 100)
+
 
     # Call Creation Functions
     create_boundaries(space, width, height)
@@ -248,7 +316,8 @@ def main(window, width, height):
     intervals = np.linspace(-40, WIDTH+40, 100)
     # intervals = np.linspace(20, WIDTH-20, 5)
     print(intervals)
-    wave = [SpringPoints(loc, height/2, HEIGHT//2.4) for loc in intervals]
+    wave = [SpringPoints(space, loc, height/2, HEIGHT//2.4) for loc in intervals]
+    wave = np.array(wave)
     # wave = [SpringPoints(width/2, height/2)]
 
     # Current Wave Height (change if want to account for displacement)
@@ -325,6 +394,28 @@ def main(window, width, height):
                     run = False
                     break
 
+                # Toggle Help
+                if event.type == pg.KEYDOWN and event.key == pg.K_h:
+                    if HELP:
+                        HELP = False
+                    else:
+                        HELP = True
+                
+                # Toggle Modes
+                if event.type == pg.KEYDOWN and event.key == pg.K_w:
+                    if WaveMode:
+                        WaveMode = False
+                    else:
+                        WaveMode = True
+                    print(f'{WaveMode=}')
+                
+                # Drop Object on Mouse Click When In Object Mode
+                if not WaveMode:
+                    if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
+                        # createObject(spaceObj, event.pos, currentRadius, currentMass, currentElasticity, currentFriction)
+                        ball = createObject(space, event.pos)
+                        objects.append(ball)
+
                 # Handle Pausing/Playing The Simulation
                 if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
                     if paused:
@@ -365,26 +456,25 @@ def main(window, width, height):
                 if event.type == pg.KEYUP and event.key == pg.K_l:
                     decreasingD = False
 
-                # Moving Ball On Mouseclick
+                # Check for Wave Drag in Wave Mode
+                if WaveMode:
+                    if (event.type == pg.MOUSEBUTTONDOWN and event.button == 1) or dragging:
+                        if springPoint.shape.point_query(pg.mouse.get_pos()):
 
-                # Check for drag
-                if (event.type == pg.MOUSEBUTTONDOWN and event.button == 1) or dragging:
-                    if springPoint.shape.point_query(pg.mouse.get_pos()):
+                            # Get closest Spring Point
+                            min_distance = float("inf")
+                            closest_spring = None
 
-                        # Get closest Spring Point
-                        min_distance = float("inf")
-                        closest_spring = None
+                            for springPoint in wave:
+                                dist = distance(
+                                    springPoint.body.position, event.pos)
+                                if dist < min_distance:
+                                    min_distance = dist
+                                    closest_spring = springPoint
 
-                        for springPoint in wave:
-                            dist = distance(
-                                springPoint.body.position, event.pos)
-                            if dist < min_distance:
-                                min_distance = dist
-                                closest_spring = springPoint
-
-                        if closest_spring is not None:
-                            closest_spring.dragging = True
-                    print(f'{pg.mouse.get_pos()=}')
+                            if closest_spring is not None:
+                                closest_spring.dragging = True
+                        print(f'{pg.mouse.get_pos()=}')
 
                 if event.type == pg.MOUSEBUTTONUP:
                     for springPoint in wave:
@@ -397,8 +487,9 @@ def main(window, width, height):
 
         # Check for Pause/Play State
         if not paused:
-            draw(space, window, draw_options, wave)
+            draw(space,spaceObj, window, draw_options, wave,objects)
             space.step(dt)
+            spaceObj.step(dt)
             clock.tick(fps)
 
     pg.quit()
