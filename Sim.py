@@ -18,7 +18,8 @@ icon = pygame.image.load("icon.png")
 
 # Set Up Window
 WIDTH, HEIGHT = 1280, 720
-window = pg.display.set_mode((WIDTH, HEIGHT), pg.HWSURFACE  | pg.DOUBLEBUF | pg.HWACCEL)
+window = pg.display.set_mode(
+    (WIDTH, HEIGHT), pg.HWSURFACE | pg.DOUBLEBUF | pg.HWACCEL)
 pygame.display.set_caption('Ocean Wave Simulation')
 
 # Set the window icon
@@ -41,14 +42,27 @@ rock_surface.blit(pg.image.load('rock.png'), (0, 0))
 # window.fill("black")
 # window.fill((240, 248, 255))
 
-# Text 
+# If WaveMode False, Object Mode is on
+WaveMode = True
+
+# Text
 HELP = False
 pygame.font.init()
 font = pygame.font.Font('Avenir LT Std 65 Medium.otf', 15)
-textLine1 = font.render("Toggle Help: Press H", True, (37,37,37))
-textLine2 = font.render("Toggle Mode (Object/Wave): Press W", True, (37,37,37))
-textLine3 = font.render("Adjust Wind (Wave Mode): (Ctrl + Scroll)", True, (37,37,37))
-textLine4 = font.render("Adjust Object Size (Object Mode): (Ctrl + Scroll)", True, (37,37,37))
+textLine1 = font.render("Toggle Help: Press H", True, (37, 37, 37))
+textLine2 = font.render(
+    "Toggle Mode (Object/Wave): Press W", True, (37, 37, 37))
+
+# font = pygame.font.Font('Avenir LT 65 Medium Bold.ttf', 15)
+# ModeTitleColor = (42,93,224)
+ModeTitleColor = (225,92,17)
+WaveModeTitle = font.render("Wave", True, ModeTitleColor)
+ObjectModeTitle = font.render("Object", True, ModeTitleColor)
+
+textLine3 = font.render(
+    "Adjust Wind (Wave Mode): (Ctrl + Scroll)", True, (37, 37, 37))
+textLine4 = font.render(
+    "Adjust Object Size (Object Mode): (Ctrl + Scroll)", True, (37, 37, 37))
 
 # ====================================
 # SPACES
@@ -61,6 +75,7 @@ spaceObj = pm.Space()
 
 handler = space.add_collision_handler(1, 2)
 
+
 def begin(space1, arbiter, space2):
     for c in arbiter.contact_point_set:
         handler.pre_solve(arbiter, space1)
@@ -68,16 +83,25 @@ def begin(space1, arbiter, space2):
         handler.post_solve(arbiter, space1)
     return True
 
+
 # Texture
 image = pg.image.load("texture.png")
+# Blit the image onto the surface
+image_surface = pg.Surface(
+    (image.get_width()+95, image.get_height()), pg.SRCALPHA)
+image_surface.blit(image, (0, 0))
+polygon_surface = pg.Surface((WIDTH+40, HEIGHT), pg.SRCALPHA)
+polygon_surface.blit(image_surface, (0, 0), special_flags=pg.BLEND_RGBA_MULT)
 
 # Draw The Simulation
-def draw(space,spaceObj, window, draw_options, wave,objects):
+
+
+def draw(space, spaceObj, window, draw_options, wave, objects):
     # window.fill("black")
     # window.fill((0,0,0))
 
-    wave_surface.fill((0,0,0,0))
-    
+    wave_surface.fill((0, 0, 0, 0))
+
     # window.blit(background_image, (0, 0))
 
     # ====================================
@@ -90,10 +114,10 @@ def draw(space,spaceObj, window, draw_options, wave,objects):
     # x_coords = [point.body.position[0] for point in wave]
     # y_coords = [point.body.position[1] for point in wave]
 
-    # Numpy for speed 
+    # Numpy for speed
     x_coords = np.array([point.body.position[0] for point in wave])
     y_coords = np.array([point.body.position[1] for point in wave])
-    # Numpy for speed 
+    # Numpy for speed
 
     # Compute the FFT of the y-coordinates
     y_fft = np.fft.fft(y_coords)
@@ -105,47 +129,56 @@ def draw(space,spaceObj, window, draw_options, wave,objects):
     # Compute the inverse FFT to obtain the filtered y-coordinates
     y_filtered = np.fft.ifft(y_fft)
 
-
     # Draw Water Underneath Curve
     # Create a list of vertices for the polygon representing the area under the curve
     # vertices = [(x_coords[i], y_filtered[i].real)
-                # for i in range(len(x_coords))]
+    # for i in range(len(x_coords))]
     # vertices += [(x_coords[-1], HEIGHT), (x_coords[0], HEIGHT)]
 
     # Numpy for speed
-    vertices = np.array([(x_coords[i], y_filtered[i].real) for i in range(len(x_coords))])
-    vertices = np.append(vertices, [(x_coords[-1], HEIGHT), (x_coords[0], HEIGHT)], axis=0)
+    vertices = np.array([(x_coords[i], y_filtered[i].real)
+                        for i in range(len(x_coords))])
+    vertices = np.append(
+        vertices, [(x_coords[-1], HEIGHT), (x_coords[0], HEIGHT)], axis=0)
 
-    # pg.draw.polygon(window, (64, 80, 92, 50), vertices)
-    
+    # polygon_surface = pg.Surface((WIDTH+40, HEIGHT), pg.SRCALPHA)
+    # pg.draw.polygon(polygon_surface, (64, 80, 92, 50), vertices)
+    # wave_surface.blit(polygon_surface, (0, 0))
+
     # METHOD 1 - Fastest
-    # pg.gfxdraw.filled_polygon(window, vertices,(14,49,81, 200))
-    # pg.gfxdraw.aapolygon(window, vertices, (14,49,81, 255))
+    # polygon_surface = pg.Surface((WIDTH+40, HEIGHT), pg.SRCALPHA)
+    # pg.gfxdraw.filled_polygon(polygon_surface, vertices, (14, 49, 81, 200))
+    # pg.gfxdraw.aapolygon(polygon_surface, vertices, (14, 49, 81, 255))
+    # wave_surface.blit(polygon_surface, (0, 0))
 
-    # METHOD 2 - Realistic, slower but not blizting the AA edge looks and performs better 
+    # METHOD 2 - Realistic, slower but not blizting the AA edge looks and performs better
+
+    # Optimize Blitting, it's slow to do in loop over and over
+    # Separated blits that only need to be called once
     # Create a new surface with alpha channel
-    image_surface = pg.Surface((image.get_width()+95, image.get_height()), pg.SRCALPHA)
+    # image_surface = pg.Surface((image.get_width()+95, image.get_height()), pg.SRCALPHA)
 
     # Blit the image onto the surface
-    image_surface.blit(image, (0, 0))
+    # image_surface.blit(image, (0, 0))
 
     # Create a new surface for the polygon
-    polygon_surface = pg.Surface((WIDTH+40,HEIGHT), pg.SRCALPHA)
+    polygon_surface = pg.Surface((WIDTH+40, HEIGHT), pg.SRCALPHA)
 
     # Draw the polygon onto the surface
     pg.gfxdraw.filled_polygon(polygon_surface, vertices, (255, 255, 255, 255))
     # pg.gfxdraw.aapolygon(polygon_surface, vertices, (14,49,81, 255))
 
     # Blit the image surface onto the polygon surface
-    polygon_surface.blit(image_surface, (0, 0), special_flags=pg.BLEND_RGBA_MULT)
+    polygon_surface.blit(image_surface, (0, 0),
+                         special_flags=pg.BLEND_RGBA_MULT)
 
     # Blit the polygon surface onto the main surface
-    pg.gfxdraw.aapolygon(wave_surface, vertices, (124,166,203, 255))
+    pg.gfxdraw.aapolygon(wave_surface, vertices, (124, 166, 203, 255))
     wave_surface.blit(polygon_surface, (0, 0))
-    
 
     # Blit Renders
     window.blit(background_surface, (0, 0))
+    window.blit(polygon_surface, (0, 0))
     window.blit(wave_surface, (0, 0))
     # Blit Text
     window.blit(textLine1, (10, 10))
@@ -153,24 +186,31 @@ def draw(space,spaceObj, window, draw_options, wave,objects):
         window.blit(textLine2, (10, 35))
         window.blit(textLine3, (10, 60))
         window.blit(textLine4, (10, 85))
-    
+        if WaveMode:
+            window.blit(WaveModeTitle, (160.5, 35))
+        else:
+            window.blit(ObjectModeTitle, (108, 35))
+
 
     # ====================================
     # Create Smooth Curve
     # ====================================
-    
+
     # space.debug_draw(draw_options)
 
     for object in objects:
         imageRock = pg.image.load("Rock.png")
-        imageRock = pygame.transform.scale(imageRock, (object.radius*2, object.radius*2))
+        imageRock = pygame.transform.scale(
+            imageRock, (object.radius*2, object.radius*2))
 
-        rockSurface = pg.Surface((object.radius*2, object.radius*2),pg.SRCALPHA)
-        pg.draw.circle(rockSurface, (255,255,255), (object.radius,object.radius), 15)
+        rockSurface = pg.Surface(
+            (object.radius*2, object.radius*2), pg.SRCALPHA)
+        pg.draw.circle(rockSurface, (255, 255, 255),
+                       (object.radius, object.radius), 15)
         image_rect = imageRock.get_rect(center=(object.radius, object.radius))
         rockSurface.blit(imageRock, image_rect)
-        window.blit(rockSurface, (object.body.position[0]-object.radius, object.body.position[1] - object.radius ))
-
+        window.blit(
+            rockSurface, (object.body.position[0]-object.radius, object.body.position[1] - object.radius))
 
     # spaceObj.debug_draw(draw_options)
     pygame.display.flip()
@@ -234,6 +274,8 @@ def createObject(space, pos, radius=20, mass=100000, elasticity=0.2, friction=10
 # ====================================
 
 # Create Spring Points Class
+
+
 class SpringPoints:
     def __init__(self, space, x=0, y=0, height=HEIGHT/3):
         self.dampening = 0.1
@@ -285,7 +327,7 @@ def main(window, width, height):
     global HELP
 
     # If WaveMode False, Object Mode is on
-    WaveMode = True
+    global WaveMode
 
     run = True
     paused = False
@@ -304,7 +346,6 @@ def main(window, width, height):
     space.gravity = (0, 9.81 * 100 * 0)
     spaceObj.gravity = (0, 9.81 * 100)
 
-
     # Call Creation Functions
     create_boundaries(space, width, height)
 
@@ -316,14 +357,15 @@ def main(window, width, height):
     intervals = np.linspace(-40, WIDTH+40, 100)
     # intervals = np.linspace(20, WIDTH-20, 5)
     print(intervals)
-    wave = [SpringPoints(space, loc, height/2, HEIGHT//2.4) for loc in intervals]
+    wave = [SpringPoints(space, loc, height/2, HEIGHT//2.4)
+            for loc in intervals]
     wave = np.array(wave)
     # wave = [SpringPoints(width/2, height/2)]
 
     # Current Wave Height (change if want to account for displacement)
     # WAVEHEIGHT = 480
     # WAVEHEIGHT = 30
-    WAVEHEIGHT = HEIGHT - HEIGHT *0.6667
+    WAVEHEIGHT = HEIGHT - HEIGHT * 0.6667
     stiffness = 144
     damping = 5
     # Rest Length Scale
@@ -400,7 +442,7 @@ def main(window, width, height):
                         HELP = False
                     else:
                         HELP = True
-                
+
                 # Toggle Modes
                 if event.type == pg.KEYDOWN and event.key == pg.K_w:
                     if WaveMode:
@@ -408,7 +450,7 @@ def main(window, width, height):
                     else:
                         WaveMode = True
                     print(f'{WaveMode=}')
-                
+
                 # Drop Object on Mouse Click When In Object Mode
                 if not WaveMode:
                     if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
@@ -487,7 +529,7 @@ def main(window, width, height):
 
         # Check for Pause/Play State
         if not paused:
-            draw(space,spaceObj, window, draw_options, wave,objects)
+            draw(space, spaceObj, window, draw_options, wave, objects)
             space.step(dt)
             spaceObj.step(dt)
             clock.tick(fps)
