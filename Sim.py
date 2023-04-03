@@ -26,7 +26,10 @@ pygame.display.set_icon(icon)
 
 
 # Create pymunk space
+# Wave Space
 space = pm.Space()
+# Object Space
+spaceObj = pm.Space()
 
 # Background Image
 background_image = pg.image.load('background.png')
