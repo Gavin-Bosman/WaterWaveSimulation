@@ -12,9 +12,18 @@ import pygame.mask
 # Initialize PyGame
 pg.init()
 
+# Load the icon image
+icon = pygame.image.load("icon.png")
+
+
 # Set Up Window
 WIDTH, HEIGHT = 1280, 720
 window = pg.display.set_mode((WIDTH, HEIGHT), pg.HWSURFACE  | pg.DOUBLEBUF | pg.HWACCEL)
+pygame.display.set_caption('Ocean Wave Simulation')
+
+# Set the window icon
+pygame.display.set_icon(icon)
+
 
 # Create pymunk space
 space = pm.Space()
@@ -28,8 +37,6 @@ background_image = pg.transform.scale(background_image, (WIDTH, HEIGHT))
 image = pg.image.load("texture.png")
 
 # Draw The Simulation
-
-
 def draw(space, window, draw_options, wave):
     window.fill("black")
     window.fill((240, 248, 255))
@@ -78,15 +85,15 @@ def draw(space, window, draw_options, wave):
     # pg.gfxdraw.filled_polygon(window, vertices,(14,49,81, 200))
     # pg.gfxdraw.aapolygon(window, vertices, (14,49,81, 255))
 
-    # METHOD 2 - Realistic, slower but not blizting the AA edge looks and performs pretty good 
+    # METHOD 2 - Realistic, slower but not blizting the AA edge looks and performs better 
     # Create a new surface with alpha channel
-    image_surface = pg.Surface((image.get_width(), image.get_height()), pg.SRCALPHA)
+    image_surface = pg.Surface((image.get_width()+95, image.get_height()), pg.SRCALPHA)
 
     # Blit the image onto the surface
     image_surface.blit(image, (0, 0))
 
     # Create a new surface for the polygon
-    polygon_surface = pg.Surface((WIDTH,HEIGHT), pg.SRCALPHA)
+    polygon_surface = pg.Surface((WIDTH+40,HEIGHT), pg.SRCALPHA)
 
     # Draw the polygon onto the surface
     pg.gfxdraw.filled_polygon(polygon_surface, vertices, (255, 255, 255, 255))
@@ -143,6 +150,17 @@ def create_boundaries(space, width, height):
         shape.filled = False
         space.add(body, shape)
 
+
+def createObject(space, pos, radius, mass, elasticity, friction):
+    body = pm.Body(body_type=pm.Body.DYNAMIC)
+    body.position = pos
+    shape = pm.Circle(body, radius)
+    shape.mass = mass
+    shape.elasticity = elasticity
+    shape.friction = friction
+    shape.color = (255, 255, 255, 100)
+    space.add(body, shape)
+    return shape
 
 # ====================================
 # END CREATION FUNCTIONS
@@ -224,7 +242,7 @@ def main(window, width, height):
 
     # Create Wave
     # wave = [SpringPoints(loc, height/2) for loc in range(width//5)]
-    intervals = np.linspace(0, WIDTH, 100)
+    intervals = np.linspace(-40, WIDTH+40, 100)
     # intervals = np.linspace(20, WIDTH-20, 5)
     print(intervals)
     wave = [SpringPoints(loc, height/2, HEIGHT//2.4) for loc in intervals]
@@ -265,7 +283,7 @@ def main(window, width, height):
         # Join Farmost Right Point to Right Boundary
         elif ind == len(wave)-1:
             rightBoundary = pm.Body(body_type=pm.Body.KINEMATIC)
-            rightBoundary.position = (WIDTH-0, WAVEHEIGHT)
+            rightBoundary.position = (WIDTH, WAVEHEIGHT)
             joint = pm.constraints.DampedSpring(
                 wave[ind].body, rightBoundary, (0, 0), (0, 0), distance(
                     wave[ind].body.position, rightBoundary.position)*SCALE, 10, 10
