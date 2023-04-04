@@ -36,7 +36,12 @@ background_surface.blit(background_image, (0, 0))
 # Surface for Wave and Objects
 wave_surface = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
 rock_surface = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
-rock_surface.blit(pg.image.load('rock.png'), (0, 0))
+rock_surface.blit(pg.image.load('Rock.png'), (0, 0))
+
+# rock_submurged_surface = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
+# rock_submurged_surface.blit(pg.image.load('Rock2.png'), (0, 0))
+imageRock = pg.image.load("Rock.png").convert_alpha()
+imageRockSubmerged = pg.image.load("Rock.png")
 
 
 # window.fill("black")
@@ -96,7 +101,7 @@ polygon_surface.blit(image_surface, (0, 0), special_flags=pg.BLEND_RGBA_MULT)
 # Draw The Simulation
 
 
-def draw(space, spaceObj, window, draw_options, wave, objects):
+def draw(space, spaceObj, window, draw_options, wave, objects, WAVEHEIGHT):
     # window.fill("black")
     # window.fill((0,0,0))
 
@@ -198,19 +203,23 @@ def draw(space, spaceObj, window, draw_options, wave, objects):
 
     # space.debug_draw(draw_options)
 
+    global imageRock, imageRockSubmerged
     for object in objects:
-        imageRock = pg.image.load("Rock.png")
+
+        if (object.body.position[1] > HEIGHT-WAVEHEIGHT):
+            pass
+        
         imageRock = pygame.transform.scale(
             imageRock, (object.radius*2, object.radius*2))
-
+        
         rockSurface = pg.Surface(
             (object.radius*2, object.radius*2), pg.SRCALPHA)
         pg.draw.circle(rockSurface, (255, 255, 255),
-                       (object.radius, object.radius), 15)
+                    (object.radius, object.radius), 15)
         image_rect = imageRock.get_rect(center=(object.radius, object.radius))
         rockSurface.blit(imageRock, image_rect)
         window.blit(
-            rockSurface, (object.body.position[0]-object.radius, object.body.position[1] - object.radius))
+            rockSurface, (object.body.position[0]-object.radius, object.body.position[1] - object.radius), special_flags=pg.BLENDMODE_ADD)
 
     # spaceObj.debug_draw(draw_options)
     pygame.display.flip()
@@ -258,7 +267,8 @@ def createObject(space, pos, radius=20, mass=100000, elasticity=0.2, friction=10
     body.velocity = (0, 981/2)
     shape = pm.Circle(body, radius)
     shape.mass = mass
-    shape.elasticity = elasticity
+    # shape.elasticity = elasticity
+    shape.elasticity = 0
     shape.friction = friction
     shape.color = (255, 255, 255, 100)
 
@@ -354,10 +364,11 @@ def main(window, width, height):
 
     # Create Wave
     # wave = [SpringPoints(loc, height/2) for loc in range(width//5)]
+    WaveHeight = HEIGHT/2
     intervals = np.linspace(-40, WIDTH+40, 100)
     # intervals = np.linspace(20, WIDTH-20, 5)
     print(intervals)
-    wave = [SpringPoints(space, loc, height/2, HEIGHT//2.4)
+    wave = [SpringPoints(space, loc, WaveHeight, HEIGHT//2.4)
             for loc in intervals]
     wave = np.array(wave)
     # wave = [SpringPoints(width/2, height/2)]
@@ -529,7 +540,7 @@ def main(window, width, height):
 
         # Check for Pause/Play State
         if not paused:
-            draw(space, spaceObj, window, draw_options, wave, objects)
+            draw(space, spaceObj, window, draw_options, wave, objects, WaveHeight)
             space.step(dt)
             spaceObj.step(dt)
             clock.tick(fps)
