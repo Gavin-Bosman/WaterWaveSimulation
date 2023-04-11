@@ -140,10 +140,11 @@ def draw(space, spaceObj, window, draw_options, wave, objects, WAVEHEIGHT, RADIU
     vertices = np.array([(x_coords[i], y_filtered[i].real)
                         for i in range(len(x_coords))])
     vertices = np.append(
-        vertices, [(x_coords[-1], HEIGHT), (x_coords[0], HEIGHT)], axis=0)
-
+        vertices, [(x_coords[-1]+50, HEIGHT), (x_coords[0], HEIGHT)], axis=0)
+    
+    
     # Create a new surface for the polygon
-    polygon_surface = pg.Surface((WIDTH+40, HEIGHT), pg.SRCALPHA)
+    polygon_surface = pg.Surface((WIDTH+50, HEIGHT), pg.SRCALPHA)
 
     # Draw the polygon onto the surface
     pg.gfxdraw.filled_polygon(polygon_surface, vertices, (255, 255, 255, 255))
@@ -394,7 +395,7 @@ def main(window, width, height):
 
     # Create Wave
     WaveHeight = HEIGHT/2
-    intervals = np.linspace(-40, WIDTH+40, 100)
+    intervals = np.linspace(-50, WIDTH+50, 100)
     wave = [SpringPoints(space, loc, WaveHeight, HEIGHT//2.4)
             for loc in intervals]
     wave = np.array(wave)
@@ -412,6 +413,7 @@ def main(window, width, height):
 
 
     WAVEHEIGHT = WaveHeight + WaveHeight * (SCALE /2.7)
+    WAVEHEIGHT = WaveHeight
     # WAVEHEIGHT = HEIGHT - HEIGHT * 0.6667
     stiffness = 144
     damping = 5
@@ -423,7 +425,7 @@ def main(window, width, height):
         if ind == 0:
             # print(f'{wave[ind].body.position=}')
             leftBoundary = pm.Body(body_type=pm.Body.KINEMATIC)
-            leftBoundary.position = (0, WAVEHEIGHT)
+            leftBoundary.position = (-20, WAVEHEIGHT)
             # print(f'{leftBoundary.position=}')
             LEFTjoint = pm.constraints.DampedSpring(
                 leftBoundary, wave[ind].body, (0, 0), (0, 0),
@@ -433,26 +435,28 @@ def main(window, width, height):
                 wave[ind].body, wave[ind + 1].body, (0, 0), (0, 0), distance(
                     wave[ind].body.position, wave[ind + 1].body.position)*SCALE, stiffness, damping
             )
+            # space.add(LEFTjoint)
             space.add(joint2)
 
-            space.add(LEFTjoint)
 
         # Join Farmost Right Point to Right Boundary
         elif ind == len(wave)-1:
             rightBoundary = pm.Body(body_type=pm.Body.KINEMATIC)
-            rightBoundary.position = (WIDTH, WAVEHEIGHT)
-            joint = pm.constraints.DampedSpring(
+            rightBoundary.position = (WIDTH+20, WAVEHEIGHT)
+            RIGHTjoint = pm.constraints.DampedSpring(
                 wave[ind].body, rightBoundary, (0, 0), (0, 0), distance(
                     wave[ind].body.position, rightBoundary.position)*SCALE, 1000000000, 1000000000
             )
 
+
         # Join To Adjacent Points
         else:
-            RIGHTjoint = pm.constraints.DampedSpring(
+            joint = pm.constraints.DampedSpring(
                 wave[ind].body, wave[ind + 1].body, (0, 0), (0, 0), distance(
                     wave[ind].body.position, wave[ind + 1].body.position)*SCALE, stiffness, damping
             )
-            space.add(RIGHTjoint)
+            space.add(joint)
+
 
     # Key Hold Check
     scrolling = False #Check for Ctrl hold for use with scrolling
@@ -474,8 +478,8 @@ def main(window, width, height):
 
         # For each point
 
-        LEFTjoint.position = (-50,WAVEHEIGHT)
-        RIGHTjoint.position = (WIDTH+50,WAVEHEIGHT)
+        LEFTjoint.position = (0,WAVEHEIGHT)
+        RIGHTjoint.position = (WIDTH,WAVEHEIGHT)
 
         for springPoint in wave:
             # print(f'{springPoint.body.position=}')
