@@ -44,13 +44,23 @@ imageRockSubmerged = pg.image.load("Rock.png")
 
 # If WaveMode False, Object Mode is on
 WaveMode = True
+# WindMode
+WindMode = True
+WINDMAX = 1.1
 
 # Text
 HELP = False
 pygame.font.init()
 font = pygame.font.Font('Avenir LT Std 65 Medium.otf', 15)
 textLine1 = font.render("Toggle Help: Press H", True, (37, 37, 37))
+windLine = font.render("Wind Intensity:", True, (97,97,97))
+windIntensity = font.render("Wind Intensity:", True, (97,97,97))
+windIntensityOFF = font.render("OFF", True, (97,97,97))
+
 textLine2 = font.render(
+    "Toggle Wind Mode Press E", True, (37, 37, 37))
+
+textLine3 = font.render(
     "Toggle Mode (Object/Wave): Press W", True, (37, 37, 37))
 
 # font = pygame.font.Font('Avenir LT 65 Medium Bold.ttf', 15)
@@ -58,10 +68,11 @@ textLine2 = font.render(
 ModeTitleColor = (225,92,17)
 WaveModeTitle = font.render("Wave", True, ModeTitleColor)
 ObjectModeTitle = font.render("Object", True, ModeTitleColor)
+WindModeTitle = font.render("Wind", True, ModeTitleColor)
 
-textLine3 = font.render(
-    "Adjust Wind (Wave Mode): (Ctrl + Scroll)", True, (37, 37, 37))
 textLine4 = font.render(
+    "Adjust Wind (Wave Mode): (Ctrl + Scroll)", True, (37, 37, 37))
+textLine5 = font.render(
     "Adjust Object Size (Object Mode): (Ctrl + Scroll)", True, (37, 37, 37))
 
 # ====================================
@@ -96,23 +107,19 @@ polygon_surface.blit(image_surface, (0, 0), special_flags=pg.BLEND_RGBA_MULT)
 # Draw The Simulation
 
 
-def draw(space, spaceObj, window, draw_options, wave, objects, WAVEHEIGHT, RADIUS):
-    # window.fill("black")
-    # window.fill((0,0,0))
+def draw(space, spaceObj, window, draw_options, wave, objects, WAVEHEIGHT, RADIUS, INDICATOR_RADIUS, objectResize, windIntensity):
 
     wave_surface.fill((0, 0, 0, 0))
 
-    # window.blit(background_image, (0, 0))
+    # Draw resizing shape indicator
+    if objectResize:
+        pg.draw.circle(wave_surface, (255, 255, 255, 100),pg.mouse.get_pos(), INDICATOR_RADIUS)
 
     # ====================================
     # Create Smooth Curve
     # ====================================
 
     # FFT
-
-    # Extract x and y coordinates from the points
-    # x_coords = [point.body.position[0] for point in wave]
-    # y_coords = [point.body.position[1] for point in wave]
 
     # Numpy for speed
     x_coords = np.array([point.body.position[0] for point in wave])
@@ -129,37 +136,11 @@ def draw(space, spaceObj, window, draw_options, wave, objects, WAVEHEIGHT, RADIU
     # Compute the inverse FFT to obtain the filtered y-coordinates
     y_filtered = np.fft.ifft(y_fft)
 
-    # Draw Water Underneath Curve
-    # Create a list of vertices for the polygon representing the area under the curve
-    # vertices = [(x_coords[i], y_filtered[i].real)
-    # for i in range(len(x_coords))]
-    # vertices += [(x_coords[-1], HEIGHT), (x_coords[0], HEIGHT)]
-
     # Numpy for speed
     vertices = np.array([(x_coords[i], y_filtered[i].real)
                         for i in range(len(x_coords))])
     vertices = np.append(
         vertices, [(x_coords[-1], HEIGHT), (x_coords[0], HEIGHT)], axis=0)
-
-    # polygon_surface = pg.Surface((WIDTH+40, HEIGHT), pg.SRCALPHA)
-    # pg.draw.polygon(polygon_surface, (64, 80, 92, 50), vertices)
-    # wave_surface.blit(polygon_surface, (0, 0))
-
-    # METHOD 1 - Fastest
-    # polygon_surface = pg.Surface((WIDTH+40, HEIGHT), pg.SRCALPHA)
-    # pg.gfxdraw.filled_polygon(polygon_surface, vertices, (14, 49, 81, 200))
-    # pg.gfxdraw.aapolygon(polygon_surface, vertices, (14, 49, 81, 255))
-    # wave_surface.blit(polygon_surface, (0, 0))
-
-    # METHOD 2 - Realistic, slower but not blizting the AA edge looks and performs better
-
-    # Optimize Blitting, it's slow to do in loop over and over
-    # Separated blits that only need to be called once
-    # Create a new surface with alpha channel
-    # image_surface = pg.Surface((image.get_width()+95, image.get_height()), pg.SRCALPHA)
-
-    # Blit the image onto the surface
-    # image_surface.blit(image, (0, 0))
 
     # Create a new surface for the polygon
     polygon_surface = pg.Surface((WIDTH+40, HEIGHT), pg.SRCALPHA)
@@ -180,16 +161,29 @@ def draw(space, spaceObj, window, draw_options, wave, objects, WAVEHEIGHT, RADIU
     window.blit(background_surface, (0, 0))
     window.blit(polygon_surface, (0, 0))
     window.blit(wave_surface, (0, 0))
+    
     # Blit Text
     window.blit(textLine1, (10, 10))
+    
+    # Wind Intensity
+    windIntensity = font.render(str(int(abs(windIntensity/0.6*5) - 11) * -1), True, (97,97,97))
+    window.blit(windLine, (WIDTH - 145, 10))
+
     if HELP:
         window.blit(textLine2, (10, 35))
         window.blit(textLine3, (10, 60))
         window.blit(textLine4, (10, 85))
+        window.blit(textLine5, (10, 110))
         if WaveMode:
-            window.blit(WaveModeTitle, (160.5, 35))
+            window.blit(WaveModeTitle, (160.5, 60))
         else:
-            window.blit(ObjectModeTitle, (108, 35))
+            window.blit(ObjectModeTitle, (108, 60))
+        if WindMode:
+            window.blit(WindModeTitle, (60.5, 35))
+    if WindMode:
+        window.blit(windIntensity, (WIDTH - 30, 10.2))
+    else:
+        window.blit(windIntensityOFF, (WIDTH - 39, 10.2))
 
 
     # ====================================
@@ -200,27 +194,26 @@ def draw(space, spaceObj, window, draw_options, wave, objects, WAVEHEIGHT, RADIU
 
     global imageRock, imageRockSubmerged
     for object in objects:
-        object.body.radius = RADIUS
-        print(object.body.radius)
+        # object.body.radius = RADIUS
+        # print(object.body.radius)
 
         if (object.body.position[1] > HEIGHT-WAVEHEIGHT):
             pass
         
-        imageRock = pygame.transform.scale(
-            imageRock, (object.body.radius*2, object.body.radius*2))
+        if not object.body.image:
+            object.body.image = pygame.transform.scale(
+                imageRock, (object.body.radius*2, object.body.radius*2))
         
         rockSurface = pg.Surface(
             (object.body.radius*2, object.body.radius*2), pg.SRCALPHA)
         pg.draw.circle(rockSurface, (255, 255, 255),
-                    (object.body.radius, object.body.radius), RADIUS)
-        image_rect = imageRock.get_rect(center=(object.body.radius, object.body.radius))
-        rockSurface.blit(imageRock, image_rect)
+                    pg.mouse.get_pos(), RADIUS)
+        image_rect = object.body.image.get_rect(center=(object.body.radius, object.body.radius))
+        rockSurface.blit(object.body.image, image_rect)
         window.blit(
             rockSurface, (object.body.position[0]-object.body.radius, object.body.position[1] - object.body.radius), special_flags=pg.BLENDMODE_ADD)
 
-    # spaceObj.debug_draw(draw_options)
     pygame.display.flip()
-    # pg.display.update()
 
 
 # Get Distance Between Two Points
@@ -232,7 +225,6 @@ def distance(p1, p2):
 # ====================================
 
 # Create Boundaries for our Simulation
-
 
 def create_boundaries(space, width, height):
     rectRadius = 3
@@ -258,10 +250,13 @@ def create_boundaries(space, width, height):
         space.add(body, shape)
 
 
-def createObject(space, pos, radius=20, mass=100000, elasticity=0.2, friction=100):
+def createObject(space, pos, radius=20, mass=100000, elasticity=0, friction=100):
     body = pm.Body(body_type=pm.Body.DYNAMIC)
     body.position = pos
     body.velocity = (0, 981/2)
+    body.radius = radius
+    body.image = None
+    body.submerged = False
     shape = pm.Circle(body, radius)
     shape.mass = mass
     # shape.elasticity = elasticity
@@ -293,10 +288,27 @@ def apply_wind_force(wave, wind_strength, target_point, wind_force_duration, ela
 def is_submerged(obj, wave):
     x_pos = obj.body.position[0]
     y_pos_obj = obj.body.position[1]
-    y_pos_wave = wave[int(x_pos)].body.position[1]
+    
+    # Scale x_pos to the length of the wave array
+    x_index = int(x_pos / WIDTH * len(wave))
+    
+    # Ensure the index is within the bounds of the wave array
+    x_index = max(0, min(x_index, len(wave) - 1))
+    
+    y_pos_wave = wave[x_index].body.position[1]
 
-    return y_pos_obj > y_pos_wave
+    # Get closest Spring Point
+    min_distance = float("inf")
+    closest_spring = None
 
+    for springPoint in wave:
+        dist = distance(
+            springPoint.body.position, obj.body.position)
+        if dist < min_distance:
+            min_distance = dist
+            closest_spring = springPoint
+
+    return y_pos_obj > closest_spring.body.position[1]
 
 
 # ====================================
@@ -357,7 +369,7 @@ def main(window, width, height):
     global HELP
 
     # If WaveMode False, Object Mode is on
-    global WaveMode
+    global WaveMode, WindMode
 
     run = True
     paused = False
@@ -379,49 +391,43 @@ def main(window, width, height):
     # Call Creation Functions
     create_boundaries(space, width, height)
 
-    # For One Point only
-    # springPoint = SpringPoints(width/2, height/2)
 
     # Create Wave
-    # wave = [SpringPoints(loc, height/2) for loc in range(width//5)]
     WaveHeight = HEIGHT/2
     intervals = np.linspace(-40, WIDTH+40, 100)
-    # intervals = np.linspace(20, WIDTH-20, 5)
-    print(intervals)
     wave = [SpringPoints(space, loc, WaveHeight, HEIGHT//2.4)
             for loc in intervals]
     wave = np.array(wave)
 
     # Save X Coordinates
     x_coords = np.array([point.body.position[0] for point in wave])
-    # print(x_coords)
 
-
-    # wave = [SpringPoints(width/2, height/2)]
-
-    # Current Wave Height (change if want to account for displacement)
-    # WAVEHEIGHT = 480
-    # WAVEHEIGHT = 30
-    WAVEHEIGHT = HEIGHT - HEIGHT * 0.6667
-    stiffness = 144
-    damping = 5
     # Rest Length Scale
     SCALE = 1/4
     SCALE = 1/3
     SCALE = 1/2
     # SCALE = 1
+    LEFTjoint = None
+    RIGHTjoint = None
+
+
+    WAVEHEIGHT = WaveHeight + WaveHeight * (SCALE /2.7)
+    # WAVEHEIGHT = HEIGHT - HEIGHT * 0.6667
+    stiffness = 144
+    damping = 5
+
 
     # Link Adjacent Wave Points
     for ind in range(len(wave)):
         # Join Farmost Left Point to Left Boundary
         if ind == 0:
-            print(f'{wave[ind].body.position=}')
+            # print(f'{wave[ind].body.position=}')
             leftBoundary = pm.Body(body_type=pm.Body.KINEMATIC)
             leftBoundary.position = (0, WAVEHEIGHT)
-            print(f'{leftBoundary.position=}')
-            joint = pm.constraints.DampedSpring(
+            # print(f'{leftBoundary.position=}')
+            LEFTjoint = pm.constraints.DampedSpring(
                 leftBoundary, wave[ind].body, (0, 0), (0, 0),
-                wave[ind].x, 10, 10
+                wave[ind].x, 1000000000, 1000000000
             )
             joint2 = pm.constraints.DampedSpring(
                 wave[ind].body, wave[ind + 1].body, (0, 0), (0, 0), distance(
@@ -429,7 +435,7 @@ def main(window, width, height):
             )
             space.add(joint2)
 
-            space.add(joint)
+            space.add(LEFTjoint)
 
         # Join Farmost Right Point to Right Boundary
         elif ind == len(wave)-1:
@@ -437,38 +443,40 @@ def main(window, width, height):
             rightBoundary.position = (WIDTH, WAVEHEIGHT)
             joint = pm.constraints.DampedSpring(
                 wave[ind].body, rightBoundary, (0, 0), (0, 0), distance(
-                    wave[ind].body.position, rightBoundary.position)*SCALE, 10, 10
+                    wave[ind].body.position, rightBoundary.position)*SCALE, 1000000000, 1000000000
             )
 
         # Join To Adjacent Points
         else:
-            joint = pm.constraints.DampedSpring(
+            RIGHTjoint = pm.constraints.DampedSpring(
                 wave[ind].body, wave[ind + 1].body, (0, 0), (0, 0), distance(
                     wave[ind].body.position, wave[ind + 1].body.position)*SCALE, stiffness, damping
             )
-            space.add(joint)
+            space.add(RIGHTjoint)
 
     # Key Hold Check
     scrolling = False #Check for Ctrl hold for use with scrolling
-    RADIUS = 15
-    decreasingS = False
-    increasingS = False
-    decreasingD = False
-    increasingD = False
+    objectResize = False
 
+    RADIUS = 15
+    INDICATOR_RADIUS = 15
     
     # Wind Variables
     target_point = None
     wind_force_duration = 0
     elapsed_wind_time = 0
     timer = 0
-    wind_incrementer = 0.7
+    wind_incrementer = 0.899
 
     # Main Simulation Loop
     while run:
         # Get Events
 
         # For each point
+
+        LEFTjoint.position = (-50,WAVEHEIGHT)
+        RIGHTjoint.position = (WIDTH+50,WAVEHEIGHT)
+
         for springPoint in wave:
             # print(f'{springPoint.body.position=}')
 
@@ -498,52 +506,58 @@ def main(window, width, height):
                     else:
                         WaveMode = True
                     print(f'{WaveMode=}')
+                if event.type == pg.KEYDOWN and event.key == pg.K_e:
+                    if WindMode:
+                        WindMode = False
+                    else:
+                        WindMode = True
+                    print(f'{WindMode=}')
 
                 # Drop Object on Mouse Click When In Object Mode
                 if not WaveMode:
                     if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
                         # createObject(spaceObj, event.pos, currentRadius, currentMass, currentElasticity, currentFriction)
+                        RADIUS = INDICATOR_RADIUS
                         ball = createObject(space, event.pos, RADIUS, 6670 * RADIUS)
                         objects.append(ball)
 
                     # Adjust Density on Ctrl+Scroll When In Object Mode
                     if event.type == pg.KEYDOWN and event.key == pg.K_LCTRL or scrolling:
                         scrolling = True
+                        objectResize = True
                         if event.type == pg.MOUSEWHEEL:
                             if scrolling:
-                                if RADIUS < 61:
+                                if INDICATOR_RADIUS < 21:
                                     if event.y > 0:
-                                        RADIUS += 2
-                                        print(event.y)
+                                        INDICATOR_RADIUS += 2
                                         print("Density Increase")
-                                        pg.draw.circle(window, (255, 255, 255),
-                                        pg.mouse.get_pos(), RADIUS)
-                                        pg.display.flip()
+                                        print(INDICATOR_RADIUS)
+                                if INDICATOR_RADIUS > 7:
                                     if event.y < 0:
                                         print("Density Decrease")
-                                        RADIUS -= 2
-                                        pg.draw.circle(window, (255, 255, 255),
-                                        pg.mouse.get_pos(), RADIUS)
-                                        pg.display.flip()
+                                        INDICATOR_RADIUS -= 2
+                                        print(INDICATOR_RADIUS)
+
                 elif WaveMode:
                     if event.type == pg.KEYDOWN and event.key == pg.K_LCTRL or scrolling:
                         scrolling = True
                         if event.type == pg.MOUSEWHEEL:
                             if scrolling:
                                     if event.y < 0:
-                                        if wind_incrementer < 1.1:
+                                        if wind_incrementer < WINDMAX:
                                             wind_incrementer += 0.1
-                                            print("Wave Intensity Increase")
+                                            print("Wave Intensity Decrease")
                                             print(wind_incrementer)
                                     if event.y > 0:
                                         if wind_incrementer > 0.6:
-                                            print("Wave Intensity Decrease")
+                                            print("Wave Intensity Increase")
                                             wind_incrementer -= 0.1
                                             print(wind_incrementer)
                                         
 
                 if event.type == pg.KEYUP and event.key == pg.K_LCTRL:
                     scrolling = False
+                    objectResize = False
                     print(f'{scrolling=}')
 
 
@@ -556,38 +570,6 @@ def main(window, width, height):
                     else:
                         paused = True
 
-                # Adjust stiffness and damping
-                if event.type == pg.KEYDOWN and event.key == pg.K_p or increasingS:
-                    springPoint.joint.stiffness += 1
-                    increasingS = True
-                    print(f'{springPoint.joint.stiffness=}')
-
-                if event.type == pg.KEYUP and event.key == pg.K_p:
-                    increasingS = False
-
-                if event.type == pg.KEYDOWN and event.key == pg.K_o or decreasingS:
-                    springPoint.joint.stiffness -= 1
-                    decreasingS = True
-                    print(f'{springPoint.joint.stiffness=}')
-
-                if event.type == pg.KEYUP and event.key == pg.K_o:
-                    decreasingS = False
-
-                if event.type == pg.KEYDOWN and event.key == pg.K_SEMICOLON or increasingD:
-                    springPoint.joint.damping += 1
-                    increasingD = True
-                    print(f'{springPoint.joint.damping=}')
-
-                if event.type == pg.KEYUP and event.key == pg.K_SEMICOLON:
-                    increasingD = False
-
-                if event.type == pg.KEYDOWN and event.key == pg.K_l or decreasingD:
-                    springPoint.joint.springPoint.joint.damping -= 1
-                    decreasingD = True
-                    print(f'{springPoint.joint.damping=}')
-
-                if event.type == pg.KEYUP and event.key == pg.K_l:
-                    decreasingD = False
 
                 # Check for Wave Drag in Wave Mode
                 if WaveMode:
@@ -607,7 +589,6 @@ def main(window, width, height):
 
                             if closest_spring is not None:
                                 closest_spring.dragging = True
-                        print(f'{pg.mouse.get_pos()=}')
 
                 if event.type == pg.MOUSEBUTTONUP:
                     for springPoint in wave:
@@ -616,32 +597,46 @@ def main(window, width, height):
         # Check for Pause/Play State
         if not paused:
 
+            # Apply damping force to submerged objects
+            for obj in objects:
+                if is_submerged(obj, wave):
+                    if obj.body.velocity[1] > 50 or obj.body.velocity[1] < 0:
+                        obj.body.velocity *= 0.96
+
+                vx,vy = obj.body.velocity
+                obj.body.velocity = pm.Vec2d(vx*0.96, vy)
+                    
+
+
             # Add Wind Force
-            hist, bins  = np.histogram(x_coords, bins=20)
+            if WindMode:
+                hist, bins  = np.histogram(x_coords, bins=20)
 
-            if timer >= len(bins) - 2:
-                timer = -1
+                if timer >= len(bins) - 2:
+                    timer = -1
 
-            if target_point is None or elapsed_wind_time >= wind_force_duration:
-                
-                timer += 1
+                if target_point is None or elapsed_wind_time >= wind_force_duration:
+                    
+                    timer += 1
 
-                # Choose target point sequentially from random bins in according to where the clock is
-                # to simulate wind in one direction
-                target_points = np.random.uniform(bins[timer], bins[timer+1])
-                index = np.abs(x_coords - target_points).argmin()
-                target_point = wave[index]
+                    # Choose target point sequentially from random bins in according to where the clock is
+                    # to simulate wind in one direction
+                    target_points = np.random.uniform(bins[timer], bins[timer+1])
+                    index = np.abs(x_coords - target_points).argmin()
+                    target_point = wave[index]
 
-                wind_force_duration = 15  # Adjust the duration range (2 to 5 seconds) as needed
-                elapsed_wind_time = 0
+                    wind_force_duration = 15  # Adjust the duration range (2 to 5 seconds) as needed
+                    elapsed_wind_time = 0
 
-            # Apply wind force to the target point
-            wind_strength = np.random.choice(np.linspace(-100 ,-10000))
-            apply_wind_force(wave, wind_strength, target_point=target_point,
-                            wind_force_duration=wind_force_duration, elapsed_wind_time=elapsed_wind_time)
+                # Apply wind force to the target point
+                wind_strength = np.random.choice(np.linspace(-100 ,-10000))
+                apply_wind_force(wave, wind_strength, target_point=target_point,
+                                wind_force_duration=wind_force_duration, elapsed_wind_time=elapsed_wind_time)
             
+
+            # Updates
             elapsed_wind_time += wind_incrementer
-            draw(space, spaceObj, window, draw_options, wave, objects, WaveHeight, RADIUS)
+            draw(space, spaceObj, window, draw_options, wave, objects, WaveHeight, RADIUS, INDICATOR_RADIUS, objectResize, wind_incrementer)
             space.step(dt)
             spaceObj.step(dt)
             clock.tick(fps)
