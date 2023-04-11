@@ -38,14 +38,9 @@ wave_surface = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
 rock_surface = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
 rock_surface.blit(pg.image.load('Rock.png'), (0, 0))
 
-# rock_submurged_surface = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
-# rock_submurged_surface.blit(pg.image.load('Rock2.png'), (0, 0))
 imageRock = pg.image.load("Rock.png").convert_alpha()
 imageRockSubmerged = pg.image.load("Rock.png")
 
-
-# window.fill("black")
-# window.fill((240, 248, 255))
 
 # If WaveMode False, Object Mode is on
 WaveMode = True
@@ -101,7 +96,7 @@ polygon_surface.blit(image_surface, (0, 0), special_flags=pg.BLEND_RGBA_MULT)
 # Draw The Simulation
 
 
-def draw(space, spaceObj, window, draw_options, wave, objects, WAVEHEIGHT):
+def draw(space, spaceObj, window, draw_options, wave, objects, WAVEHEIGHT, RADIUS):
     # window.fill("black")
     # window.fill((0,0,0))
 
@@ -205,21 +200,23 @@ def draw(space, spaceObj, window, draw_options, wave, objects, WAVEHEIGHT):
 
     global imageRock, imageRockSubmerged
     for object in objects:
+        object.body.radius = RADIUS
+        print(object.body.radius)
 
         if (object.body.position[1] > HEIGHT-WAVEHEIGHT):
             pass
         
         imageRock = pygame.transform.scale(
-            imageRock, (object.radius*2, object.radius*2))
+            imageRock, (object.body.radius*2, object.body.radius*2))
         
         rockSurface = pg.Surface(
-            (object.radius*2, object.radius*2), pg.SRCALPHA)
+            (object.body.radius*2, object.body.radius*2), pg.SRCALPHA)
         pg.draw.circle(rockSurface, (255, 255, 255),
-                    (object.radius, object.radius), 15)
-        image_rect = imageRock.get_rect(center=(object.radius, object.radius))
+                    (object.body.radius, object.body.radius), RADIUS)
+        image_rect = imageRock.get_rect(center=(object.body.radius, object.body.radius))
         rockSurface.blit(imageRock, image_rect)
         window.blit(
-            rockSurface, (object.body.position[0]-object.radius, object.body.position[1] - object.radius), special_flags=pg.BLENDMODE_ADD)
+            rockSurface, (object.body.position[0]-object.body.radius, object.body.position[1] - object.body.radius), special_flags=pg.BLENDMODE_ADD)
 
     # spaceObj.debug_draw(draw_options)
     pygame.display.flip()
@@ -278,6 +275,29 @@ def createObject(space, pos, radius=20, mass=100000, elasticity=0.2, friction=10
 # ====================================
 # END CREATION FUNCTIONS
 # ====================================
+
+
+def apply_wind_force(wave, wind_strength, target_point, wind_force_duration, elapsed_wind_time):
+    if target_point is not None:
+        # Calculate the current wind force based on elapsed time and duration
+        current_wind_force = wind_strength * (elapsed_wind_time / wind_force_duration)
+
+        # If the elapsed time has passed half the duration, start reducing the force
+        if elapsed_wind_time >= wind_force_duration / 2:
+            current_wind_force = wind_strength - current_wind_force
+
+        # Apply the force to the target point
+        target_point.body.apply_force_at_local_point((0, current_wind_force), (0, 0))
+
+
+def is_submerged(obj, wave):
+    x_pos = obj.body.position[0]
+    y_pos_obj = obj.body.position[1]
+    y_pos_wave = wave[int(x_pos)].body.position[1]
+
+    return y_pos_obj > y_pos_wave
+
+
 
 # ====================================
 # Object Classes
@@ -371,6 +391,12 @@ def main(window, width, height):
     wave = [SpringPoints(space, loc, WaveHeight, HEIGHT//2.4)
             for loc in intervals]
     wave = np.array(wave)
+
+    # Save X Coordinates
+    x_coords = np.array([point.body.position[0] for point in wave])
+    # print(x_coords)
+
+
     # wave = [SpringPoints(width/2, height/2)]
 
     # Current Wave Height (change if want to account for displacement)
@@ -422,10 +448,21 @@ def main(window, width, height):
             )
             space.add(joint)
 
+    # Key Hold Check
+    scrolling = False #Check for Ctrl hold for use with scrolling
+    RADIUS = 15
     decreasingS = False
     increasingS = False
     decreasingD = False
     increasingD = False
+
+    
+    # Wind Variables
+    target_point = None
+    wind_force_duration = 0
+    elapsed_wind_time = 0
+    timer = 0
+    wind_incrementer = 0.7
 
     # Main Simulation Loop
     while run:
@@ -466,8 +503,51 @@ def main(window, width, height):
                 if not WaveMode:
                     if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
                         # createObject(spaceObj, event.pos, currentRadius, currentMass, currentElasticity, currentFriction)
-                        ball = createObject(space, event.pos)
+                        ball = createObject(space, event.pos, RADIUS, 6670 * RADIUS)
                         objects.append(ball)
+
+                    # Adjust Density on Ctrl+Scroll When In Object Mode
+                    if event.type == pg.KEYDOWN and event.key == pg.K_LCTRL or scrolling:
+                        scrolling = True
+                        if event.type == pg.MOUSEWHEEL:
+                            if scrolling:
+                                if RADIUS < 61:
+                                    if event.y > 0:
+                                        RADIUS += 2
+                                        print(event.y)
+                                        print("Density Increase")
+                                        pg.draw.circle(window, (255, 255, 255),
+                                        pg.mouse.get_pos(), RADIUS)
+                                        pg.display.flip()
+                                    if event.y < 0:
+                                        print("Density Decrease")
+                                        RADIUS -= 2
+                                        pg.draw.circle(window, (255, 255, 255),
+                                        pg.mouse.get_pos(), RADIUS)
+                                        pg.display.flip()
+                elif WaveMode:
+                    if event.type == pg.KEYDOWN and event.key == pg.K_LCTRL or scrolling:
+                        scrolling = True
+                        if event.type == pg.MOUSEWHEEL:
+                            if scrolling:
+                                    if event.y < 0:
+                                        if wind_incrementer < 1.1:
+                                            wind_incrementer += 0.1
+                                            print("Wave Intensity Increase")
+                                            print(wind_incrementer)
+                                    if event.y > 0:
+                                        if wind_incrementer > 0.6:
+                                            print("Wave Intensity Decrease")
+                                            wind_incrementer -= 0.1
+                                            print(wind_incrementer)
+                                        
+
+                if event.type == pg.KEYUP and event.key == pg.K_LCTRL:
+                    scrolling = False
+                    print(f'{scrolling=}')
+
+
+                # Adjust Wind Speed on Ctrl+Scroll When In Wave Mode
 
                 # Handle Pausing/Playing The Simulation
                 if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
@@ -533,14 +613,35 @@ def main(window, width, height):
                     for springPoint in wave:
                         springPoint.dragging = False
 
-                # for springPoint in wave:
-                    # if springPoint.dragging:
-                        # springPoint.body.velocity = (0, 0)
-                        # springPoint.joint.b.position = pg.mouse.get_pos()
-
         # Check for Pause/Play State
         if not paused:
-            draw(space, spaceObj, window, draw_options, wave, objects, WaveHeight)
+
+            # Add Wind Force
+            hist, bins  = np.histogram(x_coords, bins=20)
+
+            if timer >= len(bins) - 2:
+                timer = -1
+
+            if target_point is None or elapsed_wind_time >= wind_force_duration:
+                
+                timer += 1
+
+                # Choose target point sequentially from random bins in according to where the clock is
+                # to simulate wind in one direction
+                target_points = np.random.uniform(bins[timer], bins[timer+1])
+                index = np.abs(x_coords - target_points).argmin()
+                target_point = wave[index]
+
+                wind_force_duration = 15  # Adjust the duration range (2 to 5 seconds) as needed
+                elapsed_wind_time = 0
+
+            # Apply wind force to the target point
+            wind_strength = np.random.choice(np.linspace(-100 ,-10000))
+            apply_wind_force(wave, wind_strength, target_point=target_point,
+                            wind_force_duration=wind_force_duration, elapsed_wind_time=elapsed_wind_time)
+            
+            elapsed_wind_time += wind_incrementer
+            draw(space, spaceObj, window, draw_options, wave, objects, WaveHeight, RADIUS)
             space.step(dt)
             spaceObj.step(dt)
             clock.tick(fps)
