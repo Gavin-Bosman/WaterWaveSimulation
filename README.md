@@ -1,13 +1,17 @@
-Gavin Bosman - 100781902
+# Ocean Wave Simulation - Simulation and Modelling: Final Project
 
-Mekael Wasti - 100780179
 
-Simulation and Modelling - Final Project
+By: Gavin Bosman - 100781902  &nbsp; | &nbsp; Mekael Wasti - 100780179
 
-The goal of this project is to at the minimum:
-  - Provide an scientifically accurate 2D simulation of water
+<br/>
+
+The goal of this project is to:
+  - Provide a scientifically accurate and visually appealing 2D simulation of ocean water waves
   - Including:
-    - Reaction to objects of varying shape/mass being dropped
-    - Varying temp/wind conditions
+    - Realistic dynamics and aesthetics
+    - Interactivity, with responses to objects of varying shape/mass being dropped
+    - Varying external forces/wind conditions
     
-If all of the above can be achieved within the time constraints, we would like to attempt to expand into 3D
+    
+<br/>
+We hope you appreciate our work as much as we do.
